@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,7 +8,9 @@ from api.middleware.audit import HIPAAAuditMiddleware
 from api.middleware.error_handler import careguard_exception_handler, unhandled_exception_handler
 from api.routes import dashboard, discharge, twilio_voice
 from config import get_settings
+from database import Base, engine
 from exceptions import CareGuardError
+import models.db  # noqa: F401 — registers all ORM models with Base
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,7 +19,16 @@ logging.basicConfig(
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="CareGuard API",
     version=settings.app_version,
     docs_url=None if settings.is_production else "/docs",

@@ -5,9 +5,10 @@ Import these in routes; never construct services or clients in routes directly.
 """
 from collections.abc import AsyncGenerator
 
+import jwt as pyjwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jwt.exceptions import InvalidTokenError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import Settings, get_settings
@@ -29,13 +30,13 @@ def get_current_user(
     settings: Settings = Depends(get_settings),
 ) -> dict:
     try:
-        payload = jwt.decode(
+        payload = pyjwt.decode(
             credentials.credentials,
             settings.jwt_secret,
             algorithms=[settings.jwt_algorithm],
         )
         return payload
-    except JWTError:
+    except InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 
