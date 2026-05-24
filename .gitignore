@@ -1,0 +1,97 @@
+# ── Secrets & credentials ──────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*_rsa
+*_rsa.pub
+secrets/
+credentials/
+service-account*.json
+
+# ── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# ── Virtual environments ────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.env.bak
+
+# ── Testing & coverage ─────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# ── Type checking ──────────────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyright/
+
+# ── Linting ────────────────────────────────────────────────────────────────
+.ruff_cache/
+
+# ── IDEs & editors ─────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Logs ───────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Database ───────────────────────────────────────────────────────────────
+*.sqlite3
+*.db
+
+# ── Node (future frontend) ─────────────────────────────────────────────────
+node_modules/
+.npm/
+.yarn/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# ── Docker ─────────────────────────────────────────────────────────────────
+.docker/
+
+# ── Terraform state ────────────────────────────────────────────────────────
+infrastructure/terraform/*.tfstate
+infrastructure/terraform/*.tfstate.*
+infrastructure/terraform/.terraform/
+infrastructure/terraform/*.tfvars
+!infrastructure/terraform/*.tfvars.example
+
+# ── Alembic ────────────────────────────────────────────────────────────────
+# Keep migration files; ignore local override configs
+alembic.ini.local
+
+# ── Misc ───────────────────────────────────────────────────────────────────
+*.bak
+*.tmp
+.cache/
