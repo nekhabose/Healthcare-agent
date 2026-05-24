@@ -1,3 +1,7 @@
+# ── Strategy & planning docs ───────────────────────────────────────────────
+Idea.md
+plan.md
+
 # ── Secrets & credentials ──────────────────────────────────────────────────
 .env
 .env.*
