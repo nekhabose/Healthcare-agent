@@ -1,6 +1,7 @@
 # ── Strategy & planning docs ───────────────────────────────────────────────
 Idea.md
 plan.md
+CLAUDE.md
 
 # ── Secrets & credentials ──────────────────────────────────────────────────
 .env
