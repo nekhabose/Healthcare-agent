@@ -60,7 +60,7 @@ AWS Infrastructure (HIPAA-eligible)
 | Layer | Technology |
 |---|---|
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2.0 async |
-| AI Agent | Claude claude-sonnet-4-6 (Anthropic) with tool use |
+| AI Agent | Provider-agnostic — Claude (Anthropic) or DeepSeek v3/v4 via OpenAI-compatible API |
 | Voice | Twilio ConversationRelay (STT + TTS + WebSocket) |
 | EHR Integration | Epic FHIR R4 via OAuth 2.0 JWT assertion |
 | Database | PostgreSQL (AWS RDS, KMS-encrypted) |
@@ -200,6 +200,14 @@ CareGuard is built HIPAA-first:
 
 1. Create `backend/agent/tools/your_tool.py` inheriting `BaseTool`
 2. Register it in `OutreachService` inside `CareAgent._build_registry()`
+
+### Switching LLM Providers
+
+Set `LLM_PROVIDER=claude` or `LLM_PROVIDER=deepseek` in `.env` — no code changes required.
+Both providers go through the unified `LLMClient` interface in `backend/agent/llm/`.
+To add a new provider, subclass `LLMClient`, implement `create_message()`, and register it in `factory.py`.
+
+**HIPAA note:** Anthropic offers a HIPAA BAA. DeepSeek does **not** currently — do not route PHI through DeepSeek in production until a BAA is signed.
 
 ### Adding a New Repository Query
 

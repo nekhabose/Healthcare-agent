@@ -1,6 +1,6 @@
-from backend.agent.protocols.factory import ProtocolFactory
-from backend.agent.protocols.heart_failure import HeartFailureProtocol
-from backend.agent.protocols.pneumonia import PneumoniaProtocol
+from agent.protocols.factory import ProtocolFactory
+from agent.protocols.heart_failure import HeartFailureProtocol
+from agent.protocols.pneumonia import PneumoniaProtocol
 
 
 def test_factory_returns_correct_protocol_for_heart_failure():

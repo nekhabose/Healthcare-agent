@@ -22,10 +22,19 @@ class Settings(BaseSettings):
     s3_bucket: str = "careguard-discharge-docs"
     sns_escalation_topic_arn: str = ""
 
+    # LLM provider selector — 'claude' | 'deepseek'
+    llm_provider: str = "claude"
+    llm_max_tokens: int = 500
+
     # Anthropic
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-4-6"
-    claude_max_tokens: int = 500
+    claude_max_tokens: int = 500  # kept for backward compat; use llm_max_tokens
+
+    # DeepSeek (OpenAI-compatible API)
+    deepseek_api_key: str = ""
+    deepseek_model: str = "deepseek-chat"
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
 
     # Twilio
     twilio_account_sid: str = ""

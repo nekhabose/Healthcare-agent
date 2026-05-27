@@ -3,12 +3,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from backend.agent.tools.escalation import EscalationTool
-from backend.agent.tools.medication import MedicationTool
-from backend.agent.tools.registry import ToolRegistry
-from backend.agent.tools.scheduling import SchedulingTool
-from backend.agent.tools.symptom import SymptomTool
-from backend.exceptions import ToolExecutionError
+from agent.tools.escalation import EscalationTool
+from agent.tools.medication import MedicationTool
+from agent.tools.registry import ToolRegistry
+from agent.tools.scheduling import SchedulingTool
+from agent.tools.symptom import SymptomTool
+from exceptions import ToolExecutionError
 
 
 # --- SymptomTool ---

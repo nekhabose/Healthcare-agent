@@ -1,6 +1,6 @@
 import pytest
 
-from backend.services.risk import RiskInput, RiskScoringService
+from services.risk import RiskInput, RiskScoringService
 
 
 def test_high_risk_hrrp_with_readmissions():

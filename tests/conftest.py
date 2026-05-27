@@ -1,14 +1,20 @@
 import asyncio
+import sys
 import uuid
 from datetime import date
+from pathlib import Path
 from unittest.mock import AsyncMock
+
+# Make `backend/` importable as the application root so absolute imports
+# inside main.py (`from api.middleware...`) resolve when running tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 
-from backend.main import app
-from backend.models.db import Discharge, Patient
+from main import app                                # noqa: E402
+from models.db import Discharge, Patient            # noqa: E402
 
 
 @pytest.fixture(scope="session")

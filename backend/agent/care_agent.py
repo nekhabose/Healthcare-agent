@@ -4,13 +4,13 @@ CareAgent — orchestrates the post-discharge conversation.
 Responsibilities:
 - Builds the tool registry for this session.
 - Selects the condition-specific protocol.
-- Drives the Claude multi-turn conversation loop.
+- Drives a provider-agnostic multi-turn LLM conversation.
 - Persists every conversation turn.
 - Hands transcribed patient speech in via inject_patient_input().
 
-The agent is intentionally decoupled from Twilio and the DB;
-those concerns are injected through callbacks so the agent
-remains unit-testable without infrastructure.
+The agent is intentionally decoupled from Twilio, the DB, and the LLM
+provider. All three are injected so the agent remains unit-testable
+and supports any backend (Claude, DeepSeek, etc.) via build_llm_client().
 """
 import asyncio
 import logging
@@ -18,10 +18,17 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine
 
-import anthropic
-
 from config import get_settings
 from models.db import Discharge, Patient
+
+from .llm import (
+    LLMClient,
+    Message,
+    TextBlock,
+    ToolResultBlock,
+    ToolUseBlock,
+    build_llm_client,
+)
 from .protocols.factory import ProtocolFactory
 from .tools.escalation import EscalationTool
 from .tools.medication import MedicationTool
@@ -33,8 +40,8 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 EscalationCallback = Callable[..., Coroutine[Any, Any, None]]
-TurnCallback = Callable[[str, str], Coroutine[Any, Any, None]]     # (role, content)
-SendToCallCallback = Callable[[str], Coroutine[Any, Any, None]]    # (text)
+TurnCallback = Callable[[str, str], Coroutine[Any, Any, None]]
+SendToCallCallback = Callable[[str], Coroutine[Any, Any, None]]
 
 
 @dataclass
@@ -53,12 +60,16 @@ class AgentContext:
 
 
 class CareAgent:
-    def __init__(self, ctx: AgentContext) -> None:
+    def __init__(
+        self,
+        ctx: AgentContext,
+        llm: LLMClient | None = None,
+    ) -> None:
         self._ctx = ctx
-        self._client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        self._llm: LLMClient = llm or build_llm_client()
         self._registry = self._build_registry()
         self._protocol = ProtocolFactory.get(ctx.discharge.hrrp_condition)
-        self._patient_input_queue: asyncio.Queue[str] = asyncio.Queue()
+        self._patient_input_queue: asyncio.Queue[str | None] = asyncio.Queue()
 
     # ------------------------------------------------------------------
     # Public API
@@ -66,13 +77,13 @@ class CareAgent:
 
     async def run(self) -> None:
         """Drive the full conversation until the agent says goodbye."""
-        messages: list[dict[str, Any]] = []
+        messages: list[Message] = []
         system_prompt = self._build_system_prompt()
 
         opening = self._build_opening()
         await self._emit_turn("agent", opening)
         await self._ctx.send_to_call_callback(opening)
-        messages.append({"role": "assistant", "content": opening})
+        messages.append(Message(role="assistant", content=[TextBlock(text=opening)]))
 
         while True:
             patient_text = await self._wait_for_patient_input()
@@ -80,13 +91,12 @@ class CareAgent:
                 break
 
             await self._emit_turn("patient", patient_text)
-            messages.append({"role": "user", "content": patient_text})
+            messages.append(Message(role="user", content=[TextBlock(text=patient_text)]))
 
             messages = await self._agent_turn(messages, system_prompt)
 
-            # Stop if the last agent message is a closing
-            last_agent = self._last_agent_text(messages)
-            if last_agent and self._is_closing(last_agent):
+            last = self._last_agent_text(messages)
+            if last and self._is_closing(last):
                 break
 
     async def inject_patient_input(self, text: str) -> None:
@@ -95,7 +105,7 @@ class CareAgent:
 
     async def end_call(self) -> None:
         """Signal the conversation loop to stop gracefully."""
-        await self._patient_input_queue.put(None)  # type: ignore[arg-type]
+        await self._patient_input_queue.put(None)
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -120,7 +130,7 @@ class CareAgent:
         appts = self._format_appointments(ctx.discharge.followup_appointments or [])
         return self._protocol.build_system_prompt(
             hospital_name=ctx.discharge.hospital_name,
-            patient_first_name=ctx.patient.first_name,   # decrypted by caller
+            patient_first_name=ctx.patient.first_name,
             discharge_date=str(ctx.discharge.discharge_date),
             diagnosis=ctx.discharge.primary_diagnosis_name or "recent illness",
             medications=meds,
@@ -139,44 +149,42 @@ class CareAgent:
         )
 
     async def _agent_turn(
-        self, messages: list[dict[str, Any]], system_prompt: str
-    ) -> list[dict[str, Any]]:
-        """Run one agent turn, handling tool calls recursively until end_turn."""
-        response = await self._client.messages.create(
-            model=settings.claude_model,
-            max_tokens=settings.claude_max_tokens,
+        self, messages: list[Message], system_prompt: str
+    ) -> list[Message]:
+        """One agent turn — handles tool calls recursively until end_turn."""
+        response = await self._llm.create_message(
             system=system_prompt,
-            tools=self._registry.definitions,
             messages=messages,
+            tools=self._registry.definitions,
+            max_tokens=settings.llm_max_tokens,
         )
 
         if response.stop_reason == "tool_use":
-            tool_results = await self._handle_tool_calls(response.content)
-            messages.append({"role": "assistant", "content": response.content})
-            messages.append({"role": "user", "content": tool_results})
+            messages.append(Message(role="assistant", content=list(response.content)))
+            tool_results = await self._handle_tool_calls(response.tool_uses)
+            messages.append(Message(role="user", content=tool_results))
             return await self._agent_turn(messages, system_prompt)
 
-        agent_text = self._extract_text(response.content)
-        if agent_text:
-            await self._emit_turn("agent", agent_text)
-            await self._ctx.send_to_call_callback(agent_text)
-            messages.append({"role": "assistant", "content": agent_text})
+        if response.text:
+            await self._emit_turn("agent", response.text)
+            await self._ctx.send_to_call_callback(response.text)
+            messages.append(Message(
+                role="assistant",
+                content=[TextBlock(text=response.text)],
+            ))
 
         return messages
 
     async def _handle_tool_calls(
-        self, content: list[Any]
-    ) -> list[dict[str, Any]]:
-        results = []
-        for block in content:
-            if block.type != "tool_use":
-                continue
-            result = await self._registry.execute(block.name, **block.input)
-            results.append({
-                "type": "tool_result",
-                "tool_use_id": block.id,
-                "content": result,
-            })
+        self, tool_uses: list[ToolUseBlock]
+    ) -> list[ToolResultBlock]:
+        results: list[ToolResultBlock] = []
+        for tool_use in tool_uses:
+            result = await self._registry.execute(tool_use.name, **tool_use.input)
+            results.append(ToolResultBlock(
+                tool_use_id=tool_use.id,
+                content=result,
+            ))
         return results
 
     async def _wait_for_patient_input(self) -> str | None:
@@ -189,17 +197,12 @@ class CareAgent:
             logger.exception("Failed to persist conversation turn role=%s", role)
 
     @staticmethod
-    def _extract_text(content: list[Any]) -> str:
-        return " ".join(
-            block.text for block in content
-            if hasattr(block, "text") and block.text
-        )
-
-    @staticmethod
-    def _last_agent_text(messages: list[dict[str, Any]]) -> str | None:
+    def _last_agent_text(messages: list[Message]) -> str | None:
         for msg in reversed(messages):
-            if msg["role"] == "assistant" and isinstance(msg["content"], str):
-                return msg["content"]
+            if msg.role == "assistant":
+                texts = [b.text for b in msg.content if isinstance(b, TextBlock)]
+                if texts:
+                    return " ".join(texts)
         return None
 
     @staticmethod

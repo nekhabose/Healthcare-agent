@@ -4,9 +4,9 @@ ProtocolFactory — maps HRRP condition keys to protocol instances.
 Adding a new condition: create a BaseProtocol subclass,
 then register it here. Nothing else needs to change.
 """
-from exceptions import ProtocolNotFoundError
 from .base import BaseProtocol
 from .copd import COPDProtocol
+from .general import GeneralProtocol
 from .heart_failure import HeartFailureProtocol
 from .orthopedic import OrthopedicProtocol
 from .pneumonia import PneumoniaProtocol
@@ -22,11 +22,10 @@ class ProtocolFactory:
 
     @classmethod
     def get(cls, condition_key: str | None) -> BaseProtocol:
-        """Return the protocol for the given condition, falling back to base."""
+        """Return the protocol for the given condition, or GeneralProtocol if unknown."""
         if condition_key and condition_key in cls._registry:
             return cls._registry[condition_key]()
-        # General post-discharge protocol for non-HRRP conditions
-        return BaseProtocol()  # type: ignore[abstract]  # uses default checklist
+        return GeneralProtocol()
 
     @classmethod
     def register(cls, protocol_class: type[BaseProtocol]) -> None:
